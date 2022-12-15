@@ -1,0 +1,9 @@
+requests
+pyopenssl
+cryptography
+typing
+urllib3
+six
+argparse
+typeguard
+tqdm

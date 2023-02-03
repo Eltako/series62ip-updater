@@ -71,3 +71,27 @@ Since we can store the authentication data, we can also do updates later in case
 In that case you may wish to download all available versions.
 Use the `check` command to retrieve a list of available versions.
 You may then download and store each version separately.
+
+
+## Contribute
+
+### Getting started
+
+Clone this repository:
+
+```bash
+git clone https://github.com/Eltako/series62ip-updater
+```
+
+Start developing by installing the development version:
+
+```bash
+python setup.py develop
+```
+
+You can now edit the files and the change will instantly become visible in your system.
+
+
+### Packaging
+
+We follow [python-packaging](https://python-packaging.readthedocs.io/en/latest/index.html).

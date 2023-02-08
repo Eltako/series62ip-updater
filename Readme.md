@@ -25,13 +25,13 @@ Commands further down either take the output of the previous commands from the c
 The following will only fetch the authentication information, store it in a file `auth.bin` and print the information to the console.
 
 ```bash
-./client.py --device 192.168.4.1 --no-verify --server https://update.eltako.com info --auth auth.bin
+eltako-update --device 192.168.4.1 --no-verify --server https://update.eltako.com info --auth auth.bin
 ```
 
 If you have mDNS enabled or your router adds the devices hostname to your standard DNS, then you can also use https:
 
 ```bash
-./client.py --device eltako-<serial of your device> --ca path/to/eltako/user/api/certificates --server https://update.eltako.com info --auth auth.bin
+eltako-update --device eltako-<serial of your device> --ca path/to/eltako/user/api/certificates --server https://update.eltako.com info --auth auth.bin
 ```
 
 The certificates bundle can be obtained from [https://github.com/Eltako/certificate-authority](https://github.com/Eltako/certificate-authority).
@@ -42,27 +42,27 @@ From now on we assume that you're using secured communication.
 In order to fetch the next version we can use the fetch command without checking for updates first.
 
 ```bash
-./client.py --device eltako-<serial of your device> --ca  path/to/eltako/user/api/certificates --server https://update.eltako.com fetch --auth auth.bin -f fw.bin 
+eltako-update --device eltako-<serial of your device> --ca  path/to/eltako/user/api/certificates --server https://update.eltako.com fetch --auth auth.bin -f fw.bin 
 ```
 
 We may update the device using the file fw.bin:
 
 ```bash
-./client.py --device eltako-<serial of your device> --ca  path/to/eltako/user/api/certificates --server https://update.eltako.com update -f fw.bin
+eltako-update --device eltako-<serial of your device> --ca  path/to/eltako/user/api/certificates --server https://update.eltako.com update -f fw.bin
 ```
 
 It is also possible to do everything in a single command.
 However, if we forget to specify the server uri we'll get an error message:
 
 ```bash
-./client.py --device eltako-<serial of your device> --ca  path/to/eltako/user/api/certificates update
+eltako-update --device eltako-<serial of your device> --ca  path/to/eltako/user/api/certificates update
 Error: Need server uri to fetch available versions from update server
 ```
 
 Let's add it to the command line:
 
 ```bash
-./client.py --device eltako-<serial of your device> --ca  path/to/eltako/user/api/certificates --server https://update.eltako.com update
+eltako-update --device eltako-<serial of your device> --ca  path/to/eltako/user/api/certificates --server https://update.eltako.com update
 ```
 
 ### Advanced Usage

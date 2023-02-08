@@ -1,6 +1,6 @@
 from setuptools import setup, find_namespace_packages
 
-setup(name='eltako update',
+setup(name='eltako-update',
       version='1.0.0',
       description='Eltako Series 62 IP update tools',
       long_description='Scripts and modules to update Eltako Series 62 IP devices.',

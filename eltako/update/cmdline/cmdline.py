@@ -4,7 +4,7 @@ import argparse
 import pathlib
 
 
-def main() -> None:
+def arg_parser() -> argparse.ArgumentParser:
     cmdline_parser = argparse.ArgumentParser(
         description="Command line interface to update devices using the Eltako update protocol")
     cmdline_parser.add_argument("--device", "-d", help="URI of the device. Needs --pop.", dest="device_uri", type=str)
@@ -68,6 +68,10 @@ def main() -> None:
     update_cert_parser.add_argument("--csr", type=pathlib.Path, dest="csr", help="Path to csr data")
     update_cert_parser.add_argument("--cert", type=pathlib.Path, dest="cert", help="Path to new certificate")
 
+    return cmdline_parser
+
+def main() -> None:
+    cmdline_parser = arg_parser()
     parsed_args = cmdline_parser.parse_args()
 
     if parsed_args.verbose == 1:

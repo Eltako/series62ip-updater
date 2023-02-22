@@ -43,7 +43,7 @@ class EltakoDeviceCertificate:
         if isinstance(cert, OpenSSL.crypto.X509):
             self._cert = cert.to_cryptography()
         elif isinstance(cert, cryptography.x509.Certificate):
-            self._cert = cryptography.x509.Certificate
+            self._cert = cert
         elif isinstance(cert, str):
             if not cert.startswith("-----BEGIN CERTIFICATE-----"):
                 cert = "-----BEGIN CERTIFICATE-----\n" + cert

@@ -84,6 +84,11 @@ class UpdateInfo:
         self.auth = data["data"]["auth"]
         self.update = data["data"]["update"]
         self.current_version = data["data"]["currentVersion"]
+        if "thumbprint" in data["data"]:
+            self.thumbprint = data["data"]["thumbprint"]
+        else:
+            self.thumbprint: str = base64.urlsafe_b64encode(self.cert().thumbprint()).decode("ascii").replace("=", "")
+
 
     def server_uri(self) -> typing.Optional[str]:
         """
@@ -102,6 +107,7 @@ class UpdateInfo:
         return f"""\
 Location: {self.location}\n\
 Authentication: {self.auth}\n\
+Thumbprint: {self.thumbprint}\n\
 Payload: {self.update}\n\
 Current version: {self.current_version}\n\
 Certificate information:\n\
@@ -347,7 +353,7 @@ class ServerApi:
 
         update_check_params = {
             "version": ui.current_version,
-            "thumbprint": base64.urlsafe_b64encode(ui.cert().thumbprint()).decode("ascii").replace("=", ""),
+            "thumbprint": ui.thumbprint,
             "full_path": True
         }
         logging.debug("Requesting update list for {}".format(update_check_params))

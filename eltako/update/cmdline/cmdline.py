@@ -20,6 +20,7 @@ def arg_parser() -> argparse.ArgumentParser:
     cmdline_parser.add_argument("--server", "-s", type=str, dest="server_uri", help="URI of the update server",
                                 default="https://update.eltako.com")
     cmdline_parser.add_argument("-v", "--verbose", action='count', dest="verbose", help="Verbosity", default=0)
+    cmdline_parser.add_argument("--version", action='store_true', dest="print_version", help="Show version")
     ssl_verify_parser = cmdline_parser.add_mutually_exclusive_group()
     ssl_verify_parser.add_argument("--no-verify", dest="ssl_verify", action='store_false',
                                    help="Don't verify ssl connections")
@@ -78,6 +79,9 @@ def main() -> None:
         logging.basicConfig(level=logging.INFO, format="%(message)s")
     elif parsed_args.verbose > 1:
         logging.basicConfig(level=logging.DEBUG, format="%(levelname)s %(message)s")
+
+    if parsed_args.print_version:
+        print("1.0.1")
 
     if parsed_args.command is not None:
         client: Client = Client(parsed_args)

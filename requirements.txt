@@ -1,5 +1,4 @@
 requests
-pyopenssl
 cryptography
 typing
 urllib3

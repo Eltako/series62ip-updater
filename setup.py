@@ -11,7 +11,6 @@ setup(name='eltako-update',
       packages=find_namespace_packages(include=['eltako.update.*']),
       install_requires=[
             "requests",
-            "pyopenssl",
             "cryptography",
             "typing",
             "urllib3",

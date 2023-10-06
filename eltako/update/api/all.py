@@ -10,7 +10,6 @@ import sys
 import time
 import typing
 
-import OpenSSL.crypto
 import cryptography
 import cryptography.x509
 import requests
@@ -40,9 +39,7 @@ class ConnectionConfig:
 @typechecked
 class EltakoDeviceCertificate:
     def __init__(self, cert):
-        if isinstance(cert, OpenSSL.crypto.X509):
-            self._cert = cert.to_cryptography()
-        elif isinstance(cert, cryptography.x509.Certificate):
+        if isinstance(cert, cryptography.x509.Certificate):
             self._cert = cert
         elif isinstance(cert, str):
             if not cert.startswith("-----BEGIN CERTIFICATE-----"):

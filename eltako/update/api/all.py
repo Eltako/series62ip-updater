@@ -100,8 +100,7 @@ class UpdateInfo:
         return self._raw
 
     def cert(self) -> EltakoDeviceCertificate:
-        return EltakoDeviceCertificate(
-            OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, self.auth["certificate"]))
+        return EltakoDeviceCertificate(cryptography.x509.load_pem_x509_certificate(self.auth["certificate"].encode("ascii")))
 
     def __str__(self):
         return f"""\
@@ -134,7 +133,7 @@ class SignedCsr:
         self.data = data
 
     def cert(self) -> EltakoDeviceCertificate:
-        return EltakoDeviceCertificate(OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, self.data["cert"]))
+        return EltakoDeviceCertificate(cryptography.x509.load_pem_x509_certificate(self.data["cert"].encode("ascii")))
 
     def __str__(self) -> str:
         return str(self.cert())

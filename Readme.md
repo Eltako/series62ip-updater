@@ -1,13 +1,16 @@
-# Update script
+# Eltako Series 62 Update Client
 
-This repository contains scripts related to the REST-API update endpoint of the Eltako Series 62 devices.
+This repository contains a command line client to update Eltako Series 62 devices.
+You may install it using pip:
 
-* client.py is a command line client that supports all relevant update commands
-* rest_api.py is a library which can be used to write own clients. 
+```bash
+pip install -r git+https://github.com/Eltako/series62ip-updater.git@develop#egg=eltako-update
+```
 
-## client.py
+## eltako-update
 
-The client script can be used to update a device or renew a device certificate.
+`eltako-update` is a command line utility to update Eltako Series 62 devices.
+It can be used to update a device or renew a device certificate.
 In the following we assume that the device has the ip address `192.168.4.1` and the update server is running on `update.eltako.com` and is reachable on port `443` using `https`.
 We use the ip address `192.168.4.1` on purpose since that is the one that is used when the device is not connected to a wifi yet.
 This makes it possible to update devices prior commissioning.
@@ -94,4 +97,4 @@ You can now edit the files and the change will instantly become visible in your 
 
 ### Packaging
 
-We follow [python-packaging](https://python-packaging.readthedocs.io/en/latest/index.html).
+We follow the official [Python packaging guide](https://packaging.python.org/en/latest/guides/distributing-packages-using-setuptools/).

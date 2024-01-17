@@ -10,7 +10,6 @@ import sys
 import time
 import typing
 
-import OpenSSL.crypto
 import cryptography
 import cryptography.x509
 import requests
@@ -40,9 +39,7 @@ class ConnectionConfig:
 @typechecked
 class EltakoDeviceCertificate:
     def __init__(self, cert):
-        if isinstance(cert, OpenSSL.crypto.X509):
-            self._cert = cert.to_cryptography()
-        elif isinstance(cert, cryptography.x509.Certificate):
+        if isinstance(cert, cryptography.x509.Certificate):
             self._cert = cert
         elif isinstance(cert, str):
             if not cert.startswith("-----BEGIN CERTIFICATE-----"):
@@ -100,8 +97,7 @@ class UpdateInfo:
         return self._raw
 
     def cert(self) -> EltakoDeviceCertificate:
-        return EltakoDeviceCertificate(
-            OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, self.auth["certificate"]))
+        return EltakoDeviceCertificate(cryptography.x509.load_pem_x509_certificate(self.auth["certificate"].encode("ascii")))
 
     def __str__(self):
         return f"""\
@@ -134,7 +130,7 @@ class SignedCsr:
         self.data = data
 
     def cert(self) -> EltakoDeviceCertificate:
-        return EltakoDeviceCertificate(OpenSSL.crypto.load_certificate(OpenSSL.crypto.FILETYPE_PEM, self.data["cert"]))
+        return EltakoDeviceCertificate(cryptography.x509.load_pem_x509_certificate(self.data["cert"].encode("ascii")))
 
     def __str__(self) -> str:
         return str(self.cert())

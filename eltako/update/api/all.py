@@ -169,6 +169,36 @@ class AuthenticationException(Exception):
     pass
 
 
+class UploadLimit:
+    """
+    Limit upload speed to max_speed KiB/s
+    """
+    def __init__(self, data: typing.BinaryIO, length, max_speed: int = 80):
+        """
+        :param data: Data to wrap
+        :param length: The length of the data. This is needed since esp-idf's http server does not support chunked encoding
+        :param max_speed: Maximum upload speed in KiB/s
+        """
+        self._data = data
+        self._length = length
+        self._max_speed = max_speed
+        if self._max_speed < 1:
+            raise ValueError("max_speed must be greater than 0")
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        data = self._data.read(1024)
+        if data:
+            time.sleep(1.0/self._max_speed)
+            return data
+        raise StopIteration
+
+    def __len__(self):
+        return self._length
+
+
 @typechecked
 class DeviceApi:
     def __init__(self, cfg: ConnectionConfig):
@@ -247,7 +277,7 @@ class DeviceApi:
         }
         logging.debug("Pushing firmware image with headers {}".format(headers))
         with tqdm.wrapattr(io.BytesIO(image), "read", total=len(image)) as data_with_progress:
-            r: requests.Response = self.session.post(uri, data=data_with_progress, verify=self.cfg.ssl_verify,
+            r: requests.Response = self.session.post(uri, data=UploadLimit(data_with_progress, len(image)), verify=self.cfg.ssl_verify,
                                                      headers=headers, timeout=self.cfg.timeout)
             if r.status_code not in [200, 201]:
                 raise Exception("Failed to push firmware image to device ({}): {}".format(r.status_code, r.text))

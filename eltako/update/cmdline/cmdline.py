@@ -81,7 +81,7 @@ def main() -> None:
         logging.basicConfig(level=logging.DEBUG, format="%(levelname)s %(message)s")
 
     if parsed_args.print_version:
-        print("1.0.2")
+        print("1.1.1")
 
     if parsed_args.command is not None:
         client: Client = Client(parsed_args)

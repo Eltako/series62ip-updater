@@ -85,20 +85,20 @@ def main() -> None:
 
     if parsed_args.command is not None:
         client: Client = Client(parsed_args)
-        try:
-            result = {
-                "info": client.get_update_info,
-                "check": client.get_available_versions,
-                "fetch": client.get_firmware_update,
-                "update": client.update_device,
-                "csr": client.get_csr,
-                "cert": client.get_cert,
-                "renew": client.renew_cert
-            }[parsed_args.command](True)
-            print("{}".format(result))
-        except Exception as e:
-            print("Error: {}".format(e), file=sys.stderr)
-            sys.exit(1)
+        # try:
+        result = {
+            "info": client.get_update_info,
+            "check": client.get_available_versions,
+            "fetch": client.get_firmware_update,
+            "update": client.update_device,
+            "csr": client.get_csr,
+            "cert": client.get_cert,
+            "renew": client.renew_cert
+        }[parsed_args.command](True)
+        print("{}".format(result))
+        # except Exception as e:
+        #     print("Error: {}".format(e), file=sys.stderr)
+        #     sys.exit(1)
 
     sys.exit(0)
 

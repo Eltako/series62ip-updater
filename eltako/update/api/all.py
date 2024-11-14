@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-
-import base64
+import copy
 import datetime
 import hashlib
 import io
@@ -9,6 +8,7 @@ import logging
 import sys
 import time
 import typing
+from urllib.parse import urlparse
 
 import cryptography
 import cryptography.x509
@@ -18,13 +18,17 @@ import cryptography.hazmat.primitives.asymmetric.rsa
 from cryptography.hazmat.primitives import hashes
 from tqdm import tqdm
 from typeguard import typechecked
+import eltako.restapi.series62.api as series62
+import eltako.restapi.series62.models.update as s62models
+from eltako.restapi.series62.endpoints.endpoint import RequestFailedException
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 @typechecked
 class ConnectionConfig:
-    def __init__(self, uri: str, ssl_verify: typing.Union[bool, str], timeout: int, pop: typing.Optional[str] = None, api_key: typing.Optional[str] = None):
+    def __init__(self, uri: str, ssl_verify: typing.Union[bool, str], timeout: int, pop: typing.Optional[str] = None,
+                 api_key: typing.Optional[str] = None):
         self.uri = uri
         self.ssl_verify = ssl_verify
         self.timeout = timeout
@@ -70,42 +74,52 @@ digest: {self.thumbprint().hex()}\
 
 @typechecked
 class UpdateInfo:
-    def __init__(self, data):
-        """
-        param data: (pythonized) json data as returned by the device
-        """
+    def __init__(self, data: typing.Union[str, dict, s62models.FirmwareUpdateRequestInfo]):
         if isinstance(data, str):
-            data = json.loads(data)
+            data = s62models.FirmwareUpdateRequestInfo.from_json(data)
+        elif isinstance(data, dict):
+            print("data", data)
+            data = s62models.FirmwareUpdateRequestInfo.from_dict(data)
         self._raw = data
-        self.location = data["location"]
-        self.auth = data["data"]["auth"]
-        self.update = data["data"]["update"]
-        self.current_version = data["data"]["currentVersion"]
-        if "thumbprint" in data["data"]:
-            self.thumbprint = data["data"]["thumbprint"]
-        else:
-            self.thumbprint: str = base64.urlsafe_b64encode(self.cert().thumbprint()).decode("ascii").replace("=", "")
 
 
-    def server_uri(self) -> typing.Optional[str]:
+    @property
+    def data(self) -> s62models.FirmwareUpdateRequestInfo:
+        return self._raw
+
+    @property
+    def location(self) -> typing.Optional[str]:
         """
             Update server hint
         """
-        return self.location
+        return self._raw.location
 
-    def to_json(self):
-        return self._raw
+    @property
+    def current_version(self) -> str:
+        return self._raw.data.currentVersion
+
+    @property
+    def auth(self) -> s62models.UpdateAuthObject:
+        return self._raw.data.auth
+
+    @property
+    def update(self) -> s62models.UpdateVersionObject:
+        return self._raw.data.update
+
+    @property
+    def thumbprint(self) -> str:
+        return self._raw.data.thumbprint
 
     def cert(self) -> EltakoDeviceCertificate:
-        return EltakoDeviceCertificate(cryptography.x509.load_pem_x509_certificate(self.auth["certificate"].encode("ascii")))
+        return EltakoDeviceCertificate(self._raw.data.auth.parsed_certificate())
 
     def __str__(self):
         return f"""\
 Location: {self.location}\n\
-Authentication: {self.auth}\n\
+Authentication: {self._raw.data.auth}\n\
 Thumbprint: {self.thumbprint}\n\
-Payload: {self.update}\n\
-Current version: {self.current_version}\n\
+Payload: {self._raw.data.update}\n\
+Current version: {self._raw.data.currentVersion}\n\
 Certificate information:\n\
 {self.cert()}\
 """
@@ -125,40 +139,52 @@ class FirmwareImageInfo:
             m.hexdigest())
 
 
+@typechecked
 class SignedCsr:
-    def __init__(self, data):
-        self.data = data
+    def __init__(self, data: typing.Union[str, dict, s62models.CertificateUpdate]):
+        if isinstance(data, str):
+            data = s62models.CertificateUpdate.from_json(data)
+        elif isinstance(data, dict):
+            data = s62models.CertificateUpdate.from_dict(data)
+        self._data = data
+
+    @property
+    def data(self) -> s62models.CertificateUpdate:
+        return self._data
 
     def cert(self) -> EltakoDeviceCertificate:
-        return EltakoDeviceCertificate(cryptography.x509.load_pem_x509_certificate(self.data["cert"].encode("ascii")))
+        return EltakoDeviceCertificate(self._data.to_cryptography())
 
     def __str__(self) -> str:
         return str(self.cert())
 
 
+@typechecked
 class CSR:
-    def __init__(self, data):
-        self.data = data
-        header: str
-        payload: str
-        signature: str
-        header, payload, signature = [base64.urlsafe_b64decode(x + "==") for x in self.data["csr"].split(".")]
-        self.header = json.loads(header)
-        self.payload = json.loads(payload)
-        self.cert_tb = base64.urlsafe_b64decode(self.header["x5t#S256"] + "==")
-        self.csr = cryptography.x509.load_pem_x509_csr(self.payload["csr"].encode("ascii"))
+    def __init__(self, data: typing.Union[str, dict, s62models.CertificateSigningRequest]):
+        if isinstance(data, str):
+            data = s62models.CertificateSigningRequest.from_json(data)
+        elif isinstance(data, dict):
+            data = s62models.CertificateSigningRequest.from_dict(data)
+        self._data = data
+
+    @property
+    def data(self) -> s62models.CertificateSigningRequest:
+        return self._data
 
     def __str__(self):
-        pubkey: cryptography.hazmat.primitives.asymmetric.rsa.RSAPublicKey = self.csr.public_key()
+        csr = self._data.to_cryptography()
         return f"""\
-Cert thumbprint: {self.cert_tb.hex()}\n\
-Subject: {self.csr.subject}\n\
-Public key size: {pubkey.key_size}\n\
-Public key modulus: {pubkey.public_numbers().n}\
+Cert thumbprint: {self._data.signature_certificate_thumbprint().hex()}\n\
+Subject: {csr.subject}\n\
+Public key size: {csr.public_key().key_size}\n\
+Public key modulus: {csr.public_key().public_numbers().n}\
 """
 
     def __eq__(self, other):
-        return self.payload["csr"].encode("ascii") == other.payload["csr"].encode("ascii")
+        if not isinstance(other, CSR):
+            return False
+        return self._data == other._data
 
 
 class TimeoutException(Exception):
@@ -169,42 +195,18 @@ class AuthenticationException(Exception):
     pass
 
 
-class UploadLimit:
-    """
-    Limit upload speed to max_speed KiB/s
-    """
-    def __init__(self, data: typing.BinaryIO, length, max_speed: int = 80):
-        """
-        :param data: Data to wrap
-        :param length: The length of the data. This is needed since esp-idf's http server does not support chunked encoding
-        :param max_speed: Maximum upload speed in KiB/s
-        """
-        self._data = data
-        self._length = length
-        self._max_speed = max_speed
-        if self._max_speed < 1:
-            raise ValueError("max_speed must be greater than 0")
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        data = self._data.read(1024)
-        if data:
-            time.sleep(1.0/self._max_speed)
-            return data
-        raise StopIteration
-
-    def __len__(self):
-        return self._length
-
-
 @typechecked
 class DeviceApi:
     def __init__(self, cfg: ConnectionConfig):
         self.cfg: ConnectionConfig = cfg
-        self.session: requests.Session = requests.Session()
-        self.api_version = 0
+        parsed_uri = urlparse(cfg.uri)
+        con = series62.ApiConnection(scheme=parsed_uri.scheme,
+                                     host=parsed_uri.hostname,
+                                     port=parsed_uri.port or 443 if parsed_uri.scheme == "https" else 80,
+                                     pop=cfg.pop,
+                                     ssl_verify=cfg.ssl_verify,
+                                     timeout=cfg.timeout)
+        self._api = series62.Api(con)
 
     def __enter__(self):
         return self
@@ -216,72 +218,50 @@ class DeviceApi:
         self.disconnect()
 
     def disconnect(self):
-        self.session.close()
+        self._api.disconnect()
 
     @property
     def timeout(self):
         return self.cfg.timeout
 
-    def _absolute_uri(self, suffix: str) -> str:
-        return "{host}/api/v{api}/{suffix}".format(host=self.cfg.uri, api=self.api_version, suffix=suffix)
-
     def post_login(self):
         """
         Login and get api key
         """
-        uri = self._absolute_uri("login")
-        logging.info("Login and getting api key from {}".format(uri))
-        r: requests.Response = self.session.post(uri, json={"user": "admin", "password": self.cfg.pop},
-                                                 verify=self.cfg.ssl_verify, timeout=self.cfg.timeout)
-        logging.debug("Response({}): {}".format(r.status_code, r.content))
-        if r.status_code not in [200]:
-            logging.error("Failed to login to device and retrieve api key {}: {}".format(r.status_code, r.content))
-            raise AuthenticationException("Failed to authenticate with device: {}".format(r.content))
-        self.cfg.api_key = r.json()["apiKey"]
+        try:
+            self._api.login()
+        except RequestFailedException:
+            raise AuthenticationException("Failed to authenticate with device")
 
     def get_update_info(self) -> UpdateInfo:
         """
         Get update information from device
         """
-        uri = self._absolute_uri("update/firmware")
-        logging.info("Getting update information from {}".format(uri))
-        r: requests.Response = self.session.get(uri, headers={"Authorization": self.cfg.api_key},
-                                                verify=self.cfg.ssl_verify, timeout=self.cfg.timeout)
-        logging.debug("Response ({}): {}".format(r.status_code, r.content))
-
-        if r.status_code not in [200]:
-            raise Exception("Failed to get update info from device {}: {}".format(r.status_code, r.content))
-        return UpdateInfo(r.json())
+        return UpdateInfo(self._api.update().update_info())
 
     def upload_metadata(self, metadata) -> None:
         """
         Upload metadata of a single firmware update to a device
         """
-        uri = self._absolute_uri("update/prepare")
-        logging.debug("Metadata: {}".format(metadata))
-        r: requests.Response = self.session.post(uri, headers={"Authorization": self.cfg.api_key}, json=metadata,
-                                                 verify=self.cfg.ssl_verify, timeout=self.cfg.timeout)
-        if r.status_code not in [200, 201]:
-            raise Exception("Failed to begin update on device ({}): {}".format(r.status_code, r.text))
+        try:
+            print(f"Uploading {metadata}")
+            self._api.update().prepare_update(s62models.FirmwareUpdateInfo.from_dict(metadata))
+        except RequestFailedException as re:
+            raise Exception("Failed to begin update on device ({}): {}".format(re.request_response.status_code,
+                                                                               re.request_response.text))
 
     def upload_image(self, image: bytes) -> None:
         """
         Upload firmware image to a device.
         You have to upload the respective metadata first.
         """
-        uri = self._absolute_uri("update/firmware")
-        logging.info("Upload uri: {}".format(uri))
-        headers = {
-            'Content-Type': 'application/octet-stream',
-            'Authorization': self.cfg.api_key
-        }
-        logging.debug("Pushing firmware image with headers {}".format(headers))
-        with tqdm.wrapattr(io.BytesIO(image), "read", total=len(image)) as data_with_progress:
-            r: requests.Response = self.session.post(uri, data=UploadLimit(data_with_progress, len(image)), verify=self.cfg.ssl_verify,
-                                                     headers=headers, timeout=self.cfg.timeout)
-            if r.status_code not in [200, 201]:
-                raise Exception("Failed to push firmware image to device ({}): {}".format(r.status_code, r.text))
-        logging.info("Updating firmware was successful ({}): {}".format(r.status_code, r.text))
+        try:
+            with tqdm.wrapattr(io.BytesIO(image), "read", total=len(image)) as data_with_progress:
+                self._api.update().push_update(data_with_progress, len(image))
+        except RequestFailedException as re:
+            raise Exception("Failed to push firmware image to device ({}): {}".format(re.request_response.status_code,
+                                                                                      re.request_response.text))
+        logging.info("Updating firmware was successful")
         # Device reboots after the update without disconnecting
         self.disconnect()
 
@@ -301,18 +281,18 @@ class DeviceApi:
         :param timeout_seconds: Give up after this many seconds and throw TimeoutException
         """
         logging.info("Retrieving csr")
-        uri = self._absolute_uri("services/eltako/cert")
         now = datetime.datetime.now()
         while datetime.datetime.now() - now < datetime.timedelta(seconds=timeout_seconds):
-            r: requests.Response = self.session.get(uri, headers={"Authorization": self.cfg.api_key},
-                                                    verify=self.cfg.ssl_verify, timeout=self.cfg.timeout)
-            logging.debug("Response ({}): {}".format(r.status_code, r.content))
-            if r.status_code == 202:
-                logging.info("Certificate update info not available yet")
-            elif r.status_code == 200:
-                return CSR(data=r.json())
-            else:
-                raise Exception("Failed to retrieve csr ({}): {}".format(r.status_code, r.text))
+            try:
+                result = self._api.services().certificate_renewal().get_csr()
+                match type(result):
+                    case s62models.CertificateSigningRequestGenerationStatus:
+                        logging.info("Certificate update info not available yet")
+                    case s62models.CertificateSigningRequest:
+                        return CSR(result)
+            except RequestFailedException as re:
+                raise Exception(
+                    "Failed to retrieve csr ({}): {}".format(re.request_response.status_code, re.request_response.text))
             logging.debug("Retrying in 10 seconds")
             time.sleep(10)
         raise TimeoutException("Timeout while trying to get cert info")
@@ -322,14 +302,7 @@ class DeviceApi:
         Upload a new certificate to the device
         """
         logging.info("Uploading new certificate")
-        uri = self._absolute_uri("services/eltako/cert")
-        r: requests.Response = self.session.post(uri, json=signed_cert.data,
-                                                 headers={"Authorization": self.cfg.api_key},
-                                                 verify=self.cfg.ssl_verify, timeout=self.cfg.timeout)
-        logging.debug("Response ({}): {}".format(r.status_code, r.content))
-
-        if r.status_code not in [200, 201]:
-            raise Exception("Failed to upload new cert ({}): {}".format(r.status_code, r.text))
+        self._api.services().certificate_renewal().upload_cert(signed_cert.data)
 
 
 class AuthenticationError(Exception):
@@ -364,7 +337,7 @@ class ServerApi:
         """
         # Now access the update server
         logging.info("Authenticating with update server")
-        r: requests.Response = self.session.post("{}/api/v1/auth".format(self.cfg.uri), data=ui.auth,
+        r: requests.Response = self.session.post("{}/api/v1/auth".format(self.cfg.uri), json=ui.auth.to_dict(),
                                                  verify=self.cfg.ssl_verify, timeout=self.cfg.timeout)
 
         if not (r.status_code in [200, 201]) or r.text != "true":
@@ -400,10 +373,10 @@ class ServerApi:
         :param desired_version: The version to fetch
         """
         logging.debug("Getting update for desired_version {}".format(desired_version))
-        payload = ui.update
-        payload["desiredVersion"] = desired_version
+        payload = copy.deepcopy(ui.update)
+        payload.desiredVersion = desired_version
         logging.debug("Payload: {}".format(payload))
-        r: requests.Response = self.session.post("{}/api/v1/update".format(self.cfg.uri), data=payload,
+        r: requests.Response = self.session.post("{}/api/v1/update".format(self.cfg.uri), json=payload.to_dict(),
                                                  verify=self.cfg.ssl_verify, timeout=self.cfg.timeout)
         if r.status_code not in [200, 201]:
             logging.error("Failed to get update from update server ({}): {}".format(r.status_code, r.text))
@@ -424,7 +397,7 @@ class ServerApi:
         :param csr: certificate signing request of the device
         """
 
-        r: requests.Response = self.session.post("{}/api/v1/sign".format(self.cfg.uri), json=csr.data,
+        r: requests.Response = self.session.post("{}/api/v1/sign".format(self.cfg.uri), json=csr.data.to_dict(),
                                                  verify=self.cfg.ssl_verify, timeout=self.cfg.timeout)
         logging.debug("Response ({}): {}".format(r.status_code, r.content))
         if not (r.status_code in [200, 201]):

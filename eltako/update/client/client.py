@@ -3,6 +3,7 @@ from eltako.update.api import *
 import typing
 import json
 from typeguard import typechecked
+import base64
 
 
 class CfgException(Exception):
@@ -59,7 +60,7 @@ class Client:
             ui = device_api.get_update_info()
             if hasattr(self.args, "auth") and self.args.auth is not None:
                 with open(self.args.auth, "wt") as f:
-                    f.write(json.dumps(ui.to_json(), sort_keys=True, indent=4))
+                    f.write(json.dumps(ui.data.to_dict(), sort_keys=True, indent=4))
             return ui
         else:
             with open(self.args.auth, "rt") as f:
@@ -111,7 +112,7 @@ class Client:
             csr = device_api.get_csr()
             if hasattr(self.args, "csr") and self.args.csr is not None:
                 with open(self.args.csr, "wt") as f:
-                    f.write(json.dumps(csr.data))
+                    f.write(json.dumps(csr.data.to_dict()))
             return csr
         else:
             with open(self.args.csr, "rt") as f:
@@ -121,12 +122,12 @@ class Client:
         if not hasattr(self.args, "cert") or self.args.cert is None or force_remote:
             ui = self.get_update_info()
             csr = self.get_csr()
-            server_api = self.need_server_api_to("to fetch certificate from update server")
+            server_api = self.need_server_api_to("fetch certificate from update server")
             server_api.authenticate(ui)
             signed_cert = server_api.sign_csr(csr)
             if hasattr(self.args, "cert") and self.args.cert is not None:
                 with open(self.args.cert, "wt") as f:
-                    f.write(json.dumps({"data": signed_cert.data}))
+                    f.write(json.dumps({"data": signed_cert.data.to_dict()}))
             return signed_cert
         else:
             with open(self.args.cert, "rt") as f:
